@@ -1,137 +1,143 @@
 var xmlbuilder = require("xmlbuilder");
-var prettyjson = require('prettyjson');
+var cheerio = require('cheerio');
+var fs = require("fs");
+var mimetype = require('mimetype');
+var markdown_it = require('markdown-it');
+var slugify = require('slugify');
 
-var XMLNS = {
-  opf: "http://www.idpf.org/2007/opf",
-  dc: "http://purl.org/dc/elements/1.1/"
-}
-
-var Pub = function() {
-  
-
-}
-
-function forEach(obj, callback) {
-  var keyset = Object.keys(obj);
-  for(var i in keyset) {
-    if(i>=0)
-      callback(obj[keyset[i]], keyset[i], obj);
-  }
-};
-
-var today = function() {
-  var d = new Date();
-  return  d.getFullYear() + "-"
-       + ('0' + (d.getMonth()+1)).slice(-2) + '-'
-       + ('0' + d.getDate()).slice(-2);
-}
-
-var uuid = function() {
-  return "223f7f08-2f5c-4797-91e3-1e3b5cff2abd";
-}
+var util = require(__dirname + '/util.js')
+var content_opf = require(__dirname + "/content_opf.js");
+var toc_ncx = require(__dirname + "/toc_ncx.js");
 
 
-var metadataStructure = {
-  required: {}, //TODO?
-  constants: {
-    type: {"#text": "Text"}
-  },
-  contents: {
-    title:      {},
-    language:   {},
-    rights:     {},
-    date_creation: {"@opf:event": "creation"},
-    date_copyright: {"@opf:event": "copyright"},
-    date_publication: {"@opf:event": "publication"},
-    publisher:  {},
-    identifier: {"@id": "uuid", "@opf:scheme": "UUID"},
-    creator:    {"@opf:role": "aut"}
-  },
-  defaults: {
-    date_creation:    today,
-    date_copyright:   today,
-    date_publication: today,
-    identifier:       uuid
-  }
-};
+function Pub(meta, arrayOfFileContents, options) {
+  if(!(this instanceof Pub)) return new Pub(meta, arrayOfFileContents, options);
+  var uuid = meta.identifier || util.genUuid();
 
+  var options = options || {};
 
-function content_opf(meta, fileManifest) {
-  var X = {}
+  //TODO: Generate testToC here from arrayOfFileContents files
 
-  X.package = {
-      "@xmlns": "http://www.idpf.org/2007/opf",
-      "@unique-identifier": "uuid",
-      "@version": "2.0",
-    metadata: {
-      "@xmlns:dc": "http://purl.org/dc/elements/1.1/",
-      "@xmlns:opf": "http://www.idpf.org/2007/opf"
-    },
-    manifest: {
-      "#list": []
-    },
-    spine: {
-      "#list": []
-    }
+  this.tree = {
+    "style.css": options.customCSS || fs.readFileSync(__dirname+"/default_style.css", "utf-8"),
+    text: [],
+    images: []
   };
-
-  /// Metadata ///
-  for(var key in metadataStructure.contents) {
-    if(metadataStructure.constants[key])
-      continue;
-
-    var dckey = "dc:"+key;
-    if(dckey.indexOf("_") > -1)
-      dckey = "dc:"+key.split("_")[0];
-
-    var val = metadataStructure.contents[key];
-    if(meta[key])
-      val["#text"] = meta[key];
-    else if(metadataStructure.defaults[key]) {
-      if(metadataStructure.defaults[key] instanceof Function)
-        val["#text"] = metadataStructure.defaults[key]();
-      else
-        val["#text"] = metadataStructure.defaults[key];
-    }
-    else
-      continue;
-
-    if(dckey=="dc:"+key)
-      X.package.metadata[dckey] = val;
-    else {
-      X.package.metadata["#list"] = X.package.metadata["#list"] || [];
-      var derp = {};
-      derp[dckey] = val;
-      X.package.metadata["#list"].push(derp);
-    }
+  for(var i=0; i<arrayOfFileContents.length; i++) {
+    var obj = {};
+    obj[i+".xhtml"] = arrayOfFileContents[i]
+    this.tree.text.push(obj);
   }
-  for(var key in metadataStructure.constants)
-     X.package.metadata["dc:"+key] = metadataStructure.constants[key];
 
-  /// Manifest & Spine ///
-  forEach(fileManifest, function(mediaType, href) {
-    console.log(href, mediaType)
-    var id = idOfHref(href);
-    X.package.manifest["#list"].push({item: {
-      "@id": id,
-      "@media-type": mediaType,
-      "@href": href
-    }});
-    if(mediaType == "application/x-dtbncx+xml")
-      X.package.spine["@toc"] = id;
-    else if(mediaType == "application/xhtml+xml") {
-      X.package.spine["#list"].push({"itemref": {
-        "@idref": id
-      }});
+  this.generateToC();
+  this.tree["toc.ncx"] = toc_ncx(meta, this.toc, uuid);
+
+  this.generateManifest();
+  this.tree["content.opf"] = content_opf(meta, this.manifest);
+
+  //this.ppretty("toc.ncx")
+  console.log(this.getXml("toc.ncx"))
+  //console.log(this.getXml("content.opf"))
+  
+  return this;
+}
+
+
+
+Pub.prototype.fromFiles = function(metaFilename, arrayOfFiles, options) {
+  return Pub(fs.readFileSync(metaFilename, "utf-8"),
+    arrayOfFiles.map(function(filename) {
+      return fs.readFileSync(filename, "utf-8");
+    }),
+    options
+  );
+};
+
+Pub.prototype.ppretty = function(what) {
+  util.printy(this.tree[what])
+}
+
+Pub.prototype.getXml = function(what, notPretty) {
+  return xmlbuilder.create(this.tree[what]).end({pretty: !notPretty});
+}
+
+
+Pub.prototype.generateManifest = function(dir, treePart) {
+  var self = this;
+  dir = dir || [];
+  treePart = treePart || this.tree;
+  this.manifest = this.manifest || {};
+
+  for(var filename in treePart) {
+    if(filename > -1) filename = treePart[filename];
+    var fullDir = dir.concat(filename);
+    if(Array.isArray(treePart[filename]))
+      treePart[filename].forEach(function(file, i) {
+        self.generateManifest(fullDir, file);
+      });
+    else
+      self.manifest[fullDir.join("/")] = mimetype.lookup(fullDir)
+  }
+}
+
+Pub.prototype.generateToC = function(maxH) {
+  var toc = this.toc = {};
+  maxH = maxH || 3
+  if(!(maxH>0)) throw new Error("Invalid value: " + maxH)
+  var headerLevels = "h"+Array.apply(null, {length: maxH+1})
+                              .map(Number.call, Number)
+                              .slice(1)
+                              .join(", h");
+
+  
+  this.tree.text.forEach(function(fileEntry, index) {
+    var filename = Object.keys(fileEntry)[0];
+
+    var $ = cheerio.load(fileEntry[filename])
+    var headers = $(headerLevels);
+    var i = 0;
+
+    toc["text/"+filename] = doH(1); //TODO: I don't like prepending this here; it feels manual
+    fileEntry[filename] = $.html();
+
+
+    function doH(level) {
+      if(level > 6) throw new Error("Invalid header level: " + level)
+
+      var tocPart = []
+      while(i<headers.length) {
+        var header = $(headers[i]),
+            headerLvl = headers[i].tagName.substr(1);
+
+        if(headerLvl > level) {
+          // Smaller (i.e. greater h#)
+          if(tocPart[tocPart.length-1].children)
+            //TODO: This...should really never ever happen. If it does it means I wrote the algorithm wrong.
+            throw new Error("Children already defined: " + tocPart[tocPart.length-1].text)
+          tocPart[tocPart.length-1].children = doH(headerLvl);
+          continue;
+        }
+        else if(headerLvl < level) {
+          // Bigger (i.e. lesser h#)
+          break;
+        }
+        else {
+          // Same level
+          if(!header.attr('id'))
+            header.attr('id', slugify(header.text()));
+          tocPart.push({
+            level: level,
+            text: header.text(),
+            id: header.attr('id')
+          });
+          i+=1; // NOTE: i only advances on headers of the same level
+        }
+      }
+      return tocPart;
     }
   });
-
-  return X;
 }
-
-function idOfHref(href) {
-  return href.split(".")[0].replace(/s?\//g, "-");
-}
+//*/
 
 
 
@@ -141,32 +147,23 @@ function idOfHref(href) {
 //https://github.com/oozcitak/xmlbuilder-js/wiki/Conversion-From-Object
 
 
-function printj(j) {
-  console.log(prettyjson.render(j));
-}
 
-var testMeta = {
-  "title": "Solutions for a Slow PC",
-  "language": "en",
-  "rights": "CC BY-NC-SA v4.0",
-  "date_creation": "2015-08-06",
-  "date_copyright": "2015-08-06",
-};
+var md = markdown_it("commonmark")
+  //.use(mard);
 
 
-var FileManifest = {
-  "toc.ncx": "application/x-dtbncx+xml",
-  "text/title.xhtml": "application/xhtml+xml",
-  "style.css": "text/css"
-};
-for(var i=0; i<=5; i++)
-  FileManifest["text/"+i+".xhtml"] = "application/xhtml+xml";
-for(var i=0; i<=5; i++)
-  FileManifest["images/"+i+".png"] = "image/png";
 
+var pub = new Pub({
+    "title": "Solutions for a Slow PC",
+    "language": "en",
+    "rights": "CC BY-NC-SA v4.0",
+    "date_creation": "2015-08-06",
+    "date_copyright": "2015-08-06",
+  },
+  require("/Users/notbryant/slow_pc/build/meta.json").contents.map(function(f) {
+    return md.render(fs.readFileSync("/Users/notbryant/slow_pc/"+f, "utf-8"));
+  })
+  //*/
+);
 
-var test = content_opf(testMeta, FileManifest);
-printj(test);
-
-console.log(xmlbuilder.create(test).end({pretty: true}));
 

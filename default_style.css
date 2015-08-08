@@ -1,0 +1,26 @@
+header, header h1, header h2 {
+  text-align: center;
+  hyphens: manual;
+  -webkit-hyphens: manual;
+  line-height: 1.15;
+}
+header h1 {
+  font-size: 3em;
+  margin: 1em 0 0;
+}
+header h2 {
+  font-size: 2em;
+  margin: 0.25em 0 0;
+}
+header .author {
+  margin: 4em 0 0;
+  font-size: 1.5em;
+  font-weight: bold;
+}
+hr {
+  width: 5em;
+  height: 1px;
+  background: currentColor;
+  border: 0;
+  margin: 2em auto;
+}
