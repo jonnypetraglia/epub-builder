@@ -35,22 +35,24 @@ module.exports = function(meta, toc, uuid, depth) {
 
   for(var file in toc) {
     for(var entity in toc[file])
-      navPoint(toc[file][entity], X.ncx.navMap["#list"], file);
+      X.ncx.navMap["#list"].push(navPoint(toc[file][entity], file));
   }
 
 
-  function navPoint(point, navMap, file) {
-    navMap.push({navPoint: {
+  function navPoint(point, file) {
+    var newPoint = {navPoint: {
       navLabel: {text: point.text},
       content: {"@src": file + (point.id ? "#"+point.id : '')}
-    }});
+    }};
 
     if(point.children && point.children.length > 0) {
-      var nextNode = {navPoint: {"#list": []}};
+      newPoint.navPoint["#list"] = [];
       for(var i=0; i<point.children.length; i++)
-        navPoint(point.children[i], nextNode.navPoint["#list"], file);
-      navMap.push(nextNode);
+        newPoint.navPoint["#list"].push(
+          navPoint(point.children[i], file)
+        );
     }
+    return newPoint
   }
 
   return X;
