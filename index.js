@@ -36,26 +36,20 @@ var Pub = module.exports = function(meta, arrayOfFileContents, options) {
   this.tree = {
     'META-INF': {},
     'OEBPS': {
-      "style.css": this.options.customCSS || fs.readFileSync(__dirname+"/default_style.css", "utf-8"),
+      "style.css": this.options.customCSS || this.options.customCss || fs.readFileSync(__dirname+"/default_style.css", "utf-8"),
       text: [],
       images: []
     },
     mimetype: "application/epub+zip"
   };
-  for(var i=0; i<arrayOfFileContents.length; i++) {
-    var obj = {};
-    obj[i+".xhtml"] = 
-      Pub.html2xml(
-        this.enumerateImages(
-          arrayOfFileContents[i]
-        )
-      );
-    this.tree.OEBPS.text.push(obj);
-  }
+  for(var i=0; i<arrayOfFileContents.length; i++)
+    addText.call(this, i+".xhtml", arrayOfFileContents[i]);
 
   deepestLevel = this.generateToC();
   this.tree.OEBPS["toc.ncx"] = toc_ncx(meta, this.toc, uuid, deepestLevel);
 
+  if(this.options.titlePage)
+    addText("title.xhtml", this.options.titlePage);
   this.generateManifest();
   this.tree.OEBPS["content.opf"] = content_opf(meta, this.manifest);
 
@@ -65,11 +59,25 @@ var Pub = module.exports = function(meta, arrayOfFileContents, options) {
   return this;
 }
 
+function addText(name, html) {
+  var obj = {};
+  if(options.preproc essHtml) {
+    var $ = cheerio.load(html);
+    options.preprocessHtml($)
+    html = $.html();
+  }
+  html = this.processImages(html);
+  html = Pub.html2xml(html);
+  obj[name] = html;
+  this.tree.OEBPS.text.push(obj);
+}
+
 
 Pub.markdown = mdit.render;
 Pub.slugify = slugify;
 
 Pub.fromFiles = function(meta, arrayOfFiles, options) {
+  arrayOfFiles = arrayOfFiles || meta.files;
   return new Pub(meta,
     arrayOfFiles.map(function(filename) {
       return fs.readFileSync(workingDir(filename, options.workingDir), "utf-8");
@@ -90,6 +98,7 @@ Pub.fromMarkdown = function(meta, arrayOfFileContents, options) {
 };
 
 Pub.fromMarkdownFiles = function(meta, arrayOfFiles, options) {
+  arrayOfFiles = arrayOfFiles || meta.files;
   return Pub.fromMarkdown(meta,
     arrayOfFiles.map(function(filename) {
       return fs.readFileSync(workingPath(filename, options.workingDir), "utf-8");
@@ -218,7 +227,7 @@ Pub.prototype.generateToC = function(maxH) {
   return deepestLevel+1;
 }
 
-Pub.prototype.enumerateImages = function(html) {
+Pub.prototype.processImages = function(html) {
   var imageList = this.tree.OEBPS.images,
       workingDir = this.options.workingDir;
   // Images
