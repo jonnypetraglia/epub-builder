@@ -8,7 +8,7 @@ var request = require('sync-request');
 var path = require("path");
 var mkdirp = require('mkdirp');
 
-var util = require(__dirname + '/util.js')
+var util = require(__dirname + '/util.js');
 var content_opf = require(__dirname + "/content_opf.js");
 var toc_ncx = require(__dirname + "/toc_ncx.js");
 var container_xml = require(__dirname + "/container_xml.js");
@@ -21,12 +21,10 @@ var mdit = markdown_it("commonmark"),
 var DOCTYPES = {
   "application/x-dtbncx+xml": {pubID: "-//NISO//DTD ncx 2005-1//EN", sysID: "http://www.daisy.org/z3986/2005/ncx-2005-1.dtd"},
   "application/xhtml+xml": {pubID: "-//W3C//DTD XHTML 1.1//EN", sysID: "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd"}
-}
+};
 
 
-module.exports = Pub;
-
-function Pub(meta, arrayOfFileContents, options) {
+var Pub = module.exports = function(meta, arrayOfFileContents, options) {
   if(!(this instanceof Pub)) return new Pub(meta, arrayOfFileContents, options);
   var uuid = meta.identifier || util.genUuid();
   this.options = options || {};
@@ -118,7 +116,8 @@ Pub.html2xml = function(html) {
 
   return xmlbuilder.create({"html": null}, DOCTYPES["application/xhtml+xml"])
     .att("xmlns", "http://www.w3.org/1999/xhtml")
-    .raw($('html').html({xmlMode: true}));
+    .raw($.html('html', {xmlMode: true}))
+    .end();
 }
 
 
