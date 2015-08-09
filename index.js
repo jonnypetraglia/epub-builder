@@ -47,7 +47,7 @@ function Pub(meta, arrayOfFileContents, options) {
   for(var i=0; i<arrayOfFileContents.length; i++) {
     var obj = {};
     obj[i+".xhtml"] = 
-      this.html2xml(
+      Pub.html2xml(
         this.enumerateImages(
           arrayOfFileContents[i]
         )
@@ -116,7 +116,7 @@ Pub.html2xml = function(html) {
   var $ = cheerio.load(html);
   $('head').append('<link rel="stylesheet" href="../style.css" \/>');
 
-  return builder.create({"html": null}, DOCTYPES["application/xhtml+xml"])
+  return xmlbuilder.create({"html": null}, DOCTYPES["application/xhtml+xml"])
     .att("xmlns", "http://www.w3.org/1999/xhtml")
     .raw($('html').html({xmlMode: true}));
 }
@@ -189,7 +189,7 @@ Pub.prototype.generateToC = function(maxH) {
             headerLvl = headers[i].tagName.substr(1);
 
         if(headerLvl > level) {
-          deepestLevel = Math.max(deepestLevel, level);
+          deepestLevel = Math.max(deepestLevel, headerLvl);
           // Smaller (i.e. greater h#)
           if(tocPart[tocPart.length-1].children)
             //TODO: This...should really never ever happen. If it does it means I wrote the algorithm wrong.
