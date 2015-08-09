@@ -1,4 +1,5 @@
 var Pub = require(__dirname + "/index.js")
+var util = require(__dirname + "/util.js")
 
 
 var pub = Pub.fromMarkdownFiles({

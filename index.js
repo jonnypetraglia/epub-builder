@@ -47,9 +47,10 @@ function Pub(meta, arrayOfFileContents, options) {
   for(var i=0; i<arrayOfFileContents.length; i++) {
     var obj = {};
     obj[i+".xhtml"] = 
-      this.enumerateImages(
-        arrayOfFileContents[i]
-          .replace("</head>", '<link rel="stylesheet" href="../style.css" /></head>')
+      this.html2xml(
+        this.enumerateImages(
+          arrayOfFileContents[i]
+        )
       );
     this.tree.OEBPS.text.push(obj);
   }
@@ -68,6 +69,7 @@ function Pub(meta, arrayOfFileContents, options) {
 
 
 Pub.markdown = mdit.render;
+Pub.slugify = slugify;
 
 Pub.fromFiles = function(meta, arrayOfFiles, options) {
   return new Pub(meta,
@@ -81,7 +83,7 @@ Pub.fromFiles = function(meta, arrayOfFiles, options) {
 Pub.fromMarkdown = function(meta, arrayOfFileContents, options) {
   var self = this;
   return new Pub(meta, arrayOfFileContents.map(function(data) {
-    return Pub.wrapHTMLtoXML(
+    return Pub.wrapHtmlBody(
         mdit.render==Pub.markdown ? mdit.render(data) : Pub.markdown(data)
       );
   }),
@@ -98,10 +100,9 @@ Pub.fromMarkdownFiles = function(meta, arrayOfFiles, options) {
   );
 };
 
-Pub.wrapHTMLtoXML = function(html, title) {
-  return '<?xml version="1.0" encoding="UTF-8"?>' +
-  '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.1//EN" "http://www.w3.org/TR/xhtml11/DTD/xhtml11.dtd">' + 
-  '<html xmlns="http://www.w3.org/1999/xhtml">' + 
+Pub.wrapHtmlBody = function(html, title) {
+  return '<!DOCTYPE html>' +
+  '<html>' + 
   '<head>' + 
   '<title>' + title + '</title>' + 
   '</head>' + 
@@ -111,17 +112,32 @@ Pub.wrapHTMLtoXML = function(html, title) {
   '</html>';
 }
 
+Pub.html2xml = function(html) {
+  var $ = cheerio.load(html);
+  $('head').append('<link rel="stylesheet" href="../style.css" \/>');
+
+  return builder.create({"html": null}, DOCTYPES["application/xhtml+xml"])
+    .att("xmlns", "http://www.w3.org/1999/xhtml")
+    .raw($('html').html());
+}
+
 
 Pub.prototype.ppretty = function(what) {
-  util.printy(what.split("/").reduce(function(prev, curr) {
-    return prev[curr];
-  }, this.tree));
+  util.printy(pathToTreeItem(what, this.tree));
 }
 
 Pub.prototype.getXml = function(what, notPretty) {
-  return xmlbuilder.create(what.split("/").reduce(function(prev, curr) {
+  return xmlbuilder.create(
+    pathToTreeItem(what, this.tree),
+    {version: '1.0', encoding: 'UTF-8'},
+    DOCTYPES[mimetypes.lookup(what)]
+  ).end({pretty: !notPretty});
+}
+
+function pathToTreeItem(what, tree) {
+  return what.split("/").reduce(function(prev, curr) {
     return prev[curr];
-  }, this.tree)).end({pretty: !notPretty});
+  }, tree);
 }
 
 Pub.prototype.generateManifest = function(dir, treePart) {
@@ -188,7 +204,7 @@ Pub.prototype.generateToC = function(maxH) {
         else {
           // Same level
           if(!header.attr('id'))
-            header.attr('id', slugify(header.text()));
+            header.attr('id', Pub.slugify(header.text()));
           tocPart.push({
             level: level,
             text: header.text(),

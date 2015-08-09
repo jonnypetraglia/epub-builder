@@ -1,4 +1,3 @@
-var prettyjson = require('prettyjson');
 var path = require("path");
 
 function idOfHref(href) {
@@ -19,7 +18,11 @@ var genUuid = function() {
 
 
 function printy(j) {
-  console.log(prettyjson.render(j));
+  console.log(require('prettyjson').render(j));
+}
+
+function printj(j) {
+  console.log(require('jsonpretty')(j))
 }
 
 
@@ -27,5 +30,6 @@ module.exports = {
   idOfHref: idOfHref,
   genUuid: genUuid,
   workingPath: workingPath,
-  printy: printy
+  printy: printy,
+  printj: printj
 }
