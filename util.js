@@ -1,17 +1,16 @@
 var prettyjson = require('prettyjson');
+var path = require("path");
 
 function idOfHref(href) {
   return href.split(".")[0].replace(/s?\//g, "-");
 }
 
 
-function forEach(obj, callback) {
-  var keyset = Object.keys(obj);
-  for(var i in keyset) {
-    if(i>=0)
-      callback(obj[keyset[i]], keyset[i], obj);
-  }
-};
+function workingPath(filename, workingDir) {
+  if(workingDir && path.resolve(filename)!==path.normalize(filename))
+    return path.join(workingDir, filename)
+  return filename;
+}
 
 
 var genUuid = function() {
@@ -26,7 +25,7 @@ function printy(j) {
 
 module.exports = {
   idOfHref: idOfHref,
-  forEach: forEach,
   genUuid: genUuid,
+  workingPath: workingPath,
   printy: printy
 }

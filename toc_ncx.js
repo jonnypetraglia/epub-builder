@@ -1,4 +1,4 @@
-module.exports = function(meta, toc, uuid) {
+module.exports = function(meta, toc, uuid, depth) {
   var X = {}
 
   X.ncx = {
@@ -12,7 +12,7 @@ module.exports = function(meta, toc, uuid) {
         }},
         {meta: {
           "@name": "dtb:depth",
-          "@content": 6         //TODO?
+          "@content": depth         //TODO?
         }},
         {meta: {
           "@name": "dtb:totalPageCount",
