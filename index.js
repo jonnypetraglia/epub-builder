@@ -122,10 +122,11 @@ Pub.wrapHtmlBody = function(html, title) {
 Pub.html2xml = function(html) {
   var $ = cheerio.load(html);
   $('head').append('<link rel="stylesheet" href="../style.css" \/>');
+  var innerHTML = $.html($('html').children(), {xmlMode: true});
 
   return xmlbuilder.create({"html": null}, DOCTYPES["application/xhtml+xml"])
     .att("xmlns", "http://www.w3.org/1999/xhtml")
-    .raw($.html('html', {xmlMode: true}))
+    .raw(innerHTML)
     .end();
 }
 
@@ -199,6 +200,9 @@ Pub.prototype.generateToC = function(maxH) {
         if(headerLvl > level) {
           deepestLevel = Math.max(deepestLevel, headerLvl);
           // Smaller (i.e. greater h#)
+          if(tocPart.length==0) {
+            tocPart.push({level: level})// TODO: Is this bad?
+          }
           if(tocPart[tocPart.length-1].children)
             //TODO: This...should really never ever happen. If it does it means I wrote the algorithm wrong.
             throw new Error("Children already defined: " + tocPart[tocPart.length-1].text)
