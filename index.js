@@ -118,7 +118,7 @@ Pub.html2xml = function(html) {
 
   return builder.create({"html": null}, DOCTYPES["application/xhtml+xml"])
     .att("xmlns", "http://www.w3.org/1999/xhtml")
-    .raw($('html').html());
+    .raw($('html').html({xmlMode: true}));
 }
 
 
@@ -177,8 +177,8 @@ Pub.prototype.generateToC = function(maxH) {
     var i = 0;
 
     toc["text/"+filename] = doH(1); //TODO: I don't like prepending this here; it feels manual
-    fileEntry[filename] = $.html();
 
+    fileEntry[filename] = $.html({xmlMode: true});
 
     function doH(level) {
       if(level > 6) throw new Error("Invalid header level: " + level)
@@ -251,7 +251,8 @@ Pub.prototype.enumerateImages = function(html) {
 
     this.attribs.src = "../images/" + newName;
   });
-  return $.html();
+  return $.html({xmlMode: true});
+}
 
 Pub.prototype.write = function(destination) {
   destination = path.resolve(process.cwd(), destination || this.meta.title)
