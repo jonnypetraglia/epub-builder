@@ -6,6 +6,7 @@ var markdown_it = require('markdown-it');
 var slugify = require('slugify');
 var request = require('sync-request');
 var path = require("path");
+var archiver = require('archiver');
 var mkdirp = require('mkdirp');
 
 var util = require(__dirname + '/util.js');
@@ -266,29 +267,70 @@ Pub.prototype.processImages = function(html) {
   return $.html({xmlMode: true});
 }
 
+Pub.prototype.performActionOnFiles = function(action) {
+  var that = this;
+  doPart(this.tree, [])
+
+  function doPart(part, dir) {
+    if(Array.isArray(part)) {
+      for(var i=0; i<part.length; i++) {
+        var filename = Object.keys(part[i])[0];
+        action(path.join(dir.concat(filename).join("/")), part[i][filename]);
+      }
+    } else if(typeof part == "object") {
+      var keyset = Object.keys(part);
+      if(part[ keyset[0] ]["@xmlns"])
+        action(
+          dir.join("/"),
+          that.getXml.call(that, dir.join("/"))
+        );
+      else
+        keyset.forEach(function(name) {
+          doPart(part[name], dir.concat(name));
+        });
+    } else
+      action(dir.join("/"), part);
+  }
+}
+
+Pub.prototype.printContents = function() {
+  this.performActionOnFiles(function(filepath) {
+    console.log(filepath)
+  })
+}
+
 Pub.prototype.write = function(destination) {
   destination = path.resolve(process.cwd(), destination || this.meta.title)
+  var that = this;
 
-  mkdirp.sync(path.join(destination, 'META-INF'));
-  mkdirp.sync(path.join(destination, 'OEBPS/text'));
-  mkdirp.sync(path.join(destination, 'OEBPS/images'));
-
-  fs.writeFileSync(path.join(destination, 'mimetype'), this.tree.mimetype)
-
-  fs.writeFileSync(path.join(destination, "META-INF/container.xml"), this.getXml("META-INF/container.xml"))
-  fs.writeFileSync(path.join(destination, "OEBPS/content.opf"), this.getXml("OEBPS/content.opf"))
-  fs.writeFileSync(path.join(destination, "OEBPS/toc.ncx"), this.getXml("OEBPS/toc.ncx"))
-  fs.writeFileSync(path.join(destination, "OEBPS/style.css"), this.tree["OEBPS"]["style.css"])
-
-  this.tree['OEBPS']['text'].forEach(function(fileEntity, index) {
-    var filename = Object.keys(fileEntity)[0];
-    fs.writeFileSync(path.join(destination, "OEBPS/text/"+filename), fileEntity[filename])
+  this.performActionOnFiles(function(filepath, filecontents) {
+    var fullpath = path.join(destination);
+    mkdirp.sync(path.dirname(fullpath));
+    fs.writeFile(fullpath, filecontents)
   });
-  this.tree['OEBPS']['images'].forEach(function(fileEntity, index) {
-    var filename = Object.keys(fileEntity)[0];
-    fs.writeFileSync(path.join(destination, "OEBPS/images/"+filename), fileEntity[filename])
-  });
-
-  console.log("Written to", destination)
 }
+
+Pub.prototype.build = function(destination, cb) {
+  if(destination) {
+    destination = path.resolve(process.cwd(), destination)
+    if (!/\.epub$/.test(destination)) 
+      destination += '.epub'
+  } else
+    destination = path.join(this.meta.title+'.epub')
+  
+
+  var archive = archiver.create('zip')
+
+  this.performActionOnFiles(function(filepath, filecontents) {
+    archive.append(filecontents, {
+      name: filepath,
+      store: filepath=="mimetype"
+    });
+  })
+  archive.finalize()
+  archive.pipe(fs.createWriteStream(destination))
+  archive.on('end', function() {
+    console.log('Generated '+path.relative(process.cwd(), destination))
+    cb()
+  })
 }
