@@ -1,4 +1,7 @@
 var path = require("path");
+var mimetypes = require('mime-types');
+var fs = require('fs');
+var request = require('sync-request');
 
 function idOfHref(href) {
   return href.split(".")[0].replace(/s?\//g, "-");
@@ -26,10 +29,35 @@ function printj(j) {
 }
 
 
+function image2bufferSync(uri, workingDir) {
+  workingDir = workingDir || __dirname
+  var res = {}
+  // Binary
+  if(uri instanceof Buffer) {
+    return uri
+  }
+  // Base64
+  else if(/^data:image\/[a-z0-9]+;base64,/.test(uri)) {
+    var contentType = uri.match(/data:(image\/[a-z0-9]+);base64,/)[1];
+    return new Buffer(uri.substr(uri.indexOf(";base64,")+";base64,".length), 'base64');
+  // Local file
+  } else if(fs.existsSync(workingPath(uri, workingDir))) {
+    return fs.readFileSync(workingPath(uri, workingDir));
+  // Url
+  } else {
+    var res = request("GET", uri);
+    if(!/^image\//.test(res.headers['content-type']))
+      throw new Error("Wrong content-type, expected an image:" + res.headers['content-type'] + " (" + uri + ")");
+    return res.getBody();
+  }
+}
+
+
 module.exports = {
   idOfHref: idOfHref,
   genUuid: genUuid,
   workingPath: workingPath,
+  image2bufferSync: image2bufferSync,
   printy: printy,
   printj: printj
 }

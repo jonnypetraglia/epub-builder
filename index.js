@@ -100,34 +100,12 @@ function addImage(uri, name) {
   if(this.imageMap[uri])
     return;
   this.imgCount = this.imgCount || 0;
-  var workingDir = this.options.workingDir
+  name = name || (this.imgCount++)
+  var imgData = util.image2bufferSync(uri, this.options.workingDir);
+  name = name+imageType(imgData).ext;
+
   var newObj = {};
-  name = name || ("" + this.imgCount++)
-
-  // Binary
-  if(uri instanceof Buffer) {
-    name = name + "." + imageType(uri).ext;
-    newObj[name] = uri;
-  }
-  // Base64
-  else if(/^data:image\/[a-z0-9]+;base64,/.test(uri)) {
-    var contentType = uri.match(/data:(image\/[a-z0-9]+);base64,/)[1]
-    name = name + "." + mimetypes.extension(contentType);
-    // ext should also equal imageType(buffer), but I figure this is quicker
-    newObj[name] = new Buffer(uri.substr(uri.indexOf(";base64,")+";base64,".length), 'base64');
-  // Local file
-  } else if(fs.existsSync(workingPath(uri, workingDir))) {
-    name = name + path.extname(uri);
-    newObj[name] = fs.readFileSync(workingPath(uri, workingDir));
-  // Url
-  } else {
-    var res = request("GET", uri);
-    if(!/^image\//.test(res.headers['content-type']))
-      throw new Error("Wrong content-type, expected an image:" + res.headers['content-type'] + " (" + uri + ")");
-
-    name = name + "." + mimetypes.extension(res.headers['content-type']);
-    newObj[name] = res.getBody();
-  }
+  newObj[name] = imgData;
   this.tree.OEBPS.images.push(newObj);
   this.imageMap[uri] = name;
 }
