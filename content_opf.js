@@ -49,10 +49,15 @@ function content_opf(meta, fileManifest) {
     },
     spine: {
       "#list": []
+    },
+    guide: {
+      "#list": []
     }
   };
 
   /// Metadata ///
+  for(var key in metadataStructure.constants)
+     X.package.metadata["dc:"+key] = metadataStructure.constants[key];
   for(var key in metadataStructure.contents) {
     if(metadataStructure.constants[key])
       continue;
@@ -82,8 +87,6 @@ function content_opf(meta, fileManifest) {
       X.package.metadata["#list"].push(derp);
     }
   }
-  for(var key in metadataStructure.constants)
-     X.package.metadata["dc:"+key] = metadataStructure.constants[key];
 
   /// Manifest & Spine ///
   for(var href in fileManifest) {
@@ -91,17 +94,42 @@ function content_opf(meta, fileManifest) {
     var id = U.idOfHref(href);
     X.package.manifest["#list"].push({item: {
       "@id": id,
-      "@media-type": mediaType,
-      "@href": href
+      "@href": href,
+      "@media-type": mediaType
     }});
-    if(mediaType == "application/x-dtbncx+xml")
-      X.package.spine["@toc"] = id;
-    else if(mediaType == "application/xhtml+xml") {
-      X.package.spine["#list"].push({"itemref": {
-        "@idref": id
+    if(id=="image-cover") {
+      X.package.metadata["#list"].push({meta: {
+        "@name": "cover",
+        "@content": id
+      }});
+    } else if(id=="text-title") {
+      X.package.guide["#list"].push({reference: {
+        "@href": href,
+        "@type": "cover",
+        "@title": "cover",
       }});
     }
+    if(mediaType == "application/x-dtbncx+xml") {
+      X.package.spine["@toc"] = id;
+      X.package.guide["#list"].push({reference: {
+        "@href": href,
+        "@type": "toc",
+        "@title": "Table of Contents"
+      }});
+    }
+    else if(mediaType == "application/xhtml+xml") {
+      if(id.indexOf("-cover")==-1)
+        X.package.spine["#list"].push({"itemref": {
+          "@idref": id
+        }});
+    }
   }
+
+  X.package.guide["#list"].push({reference: {
+    "@href": "text/0.xhtml",
+    "@type": "text",
+    "@title": "Start"
+  }});
 
   return X;
 }

@@ -41,24 +41,25 @@ var Pub = module.exports = function(meta, arrayOfFileContents, options) {
       text: [],
       images: []
     },
-    mimetype: "application/epub+zip"
+    mimetype: mimetypes.lookup(".epub")
   };
   if(this.options.titlePage)
-    this.processImages(cheerio.load(this.options.titlePage));
+    addText.call(this, "title.xhtml", this.options.titlePage);
   for(var i=0; i<arrayOfFileContents.length; i++)
     addText.call(this, i+".xhtml", arrayOfFileContents[i]);
 
   deepestLevel = this.generateToC();
   this.tree.OEBPS["toc.ncx"] = toc_ncx(meta, this.toc, uuid, deepestLevel);
 
-  if(this.options.titlePage)
-    addText.call(this, "title.xhtml", this.options.titlePage);
+  if(this.options.tocInText) {
+    //TODO: render ToC as text, addText.call(...)
+  }
 
   this.generateManifest();
   this.tree.OEBPS["content.opf"] = content_opf(meta, this.manifest);
 
 
-  this.tree['META-INF']['container.xml'] = container_xml(["content.opf"]);
+  this.tree['META-INF']['container.xml'] = container_xml("OEBPS/content.opf");
 
   return this;
 }
@@ -74,8 +75,35 @@ function addText(name, html) {
   this.tree.OEBPS.text.push(obj);
 }
 
+function addImage(uri, name) {
+ this.imageMap = this.imageMap || {};
+  if(this.imageMap[uri])
+    return;
+  this.imgCount = this.imgCount || 0;
+  var workingDir = this.options.workingDir
+  var newObj = {};
+  var localPath = workingPath(uri, workingDir);
+  name = name || ("" + this.imgCount++)
 
-Pub.markdown = mdit.render;
+  if(fs.existsSync(workingPath(uri, workingDir))) {
+    name = name + path.extname(uri);
+    newObj[name] = fs.readFileSync(localPath);
+  } else {
+    var res = request("GET", uri);
+    if(!/^image\//.test(res.headers['content-type']))
+      throw new Error("Wrong content-type, expected an image:" + res.headers['content-type'] + " (" + uri + ")");
+
+    name = name + "." + mimetypes.extension(res.headers['content-type']);
+    newObj[name] = res.getBody();
+  }
+  this.tree.OEBPS.images.push(newObj);
+  this.imageMap[uri] = name;
+}
+
+
+Pub.markdown = function(md) {
+  return mdit.render(md)
+};
 Pub.slugify = slugify;
 
 Pub.fromFiles = function(meta, arrayOfFiles, options) {
@@ -91,11 +119,9 @@ Pub.fromFiles = function(meta, arrayOfFiles, options) {
 Pub.fromMarkdown = function(meta, arrayOfFileContents, options) {
   var self = this;
   if(options.titlePage)
-    options.titlePage = mdit.render==Pub.markdown ? mdit.render(options.titlePage) : Pub.markdown(options.titlePage)
+    options.titlePage = Pub.wrapHtmlBody(Pub.markdown(options.titlePage), "Title Page");
   return new Pub(meta, arrayOfFileContents.map(function(data) {
-    return Pub.wrapHtmlBody(
-        mdit.render==Pub.markdown ? mdit.render(data) : Pub.markdown(data)
-      );
+    return Pub.wrapHtmlBody(Pub.markdown(data));
   }),
   options
   );
@@ -103,6 +129,8 @@ Pub.fromMarkdown = function(meta, arrayOfFileContents, options) {
 
 Pub.fromMarkdownFiles = function(meta, arrayOfFiles, options) {
   arrayOfFiles = arrayOfFiles || meta.files;
+  if(options.titlePage)
+    options.titlePage = fs.readFileSync(workingPath(options.titlePage, options.workingDir), "utf-8")
   return Pub.fromMarkdown(meta,
     arrayOfFiles.map(function(filename) {
       return fs.readFileSync(workingPath(filename, options.workingDir), "utf-8");
@@ -115,7 +143,7 @@ Pub.wrapHtmlBody = function(html, title) {
   return '<!DOCTYPE html>' +
   '<html>' + 
   '<head>' + 
-  '<title>' + title + '</title>' + 
+  '<title>' + (title||cheerio.load(html)('h1').text()) + '</title>' + 
   '</head>' + 
   '<body>' + 
   html + 
@@ -126,7 +154,7 @@ Pub.wrapHtmlBody = function(html, title) {
 Pub.html2xml = function(html) {
   var $ = cheerio.load(html);
   $('head').append('<link rel="stylesheet" href="../style.css" \/>');
-  var innerHTML = $.html($('html').children(), {xmlMode: true});
+  var innerHTML = $.html($('html').children(), {xmlMode: true}) || html;
 
   return xmlbuilder.create({"html": null}, DOCTYPES["application/xhtml+xml"])
     .att("xmlns", "http://www.w3.org/1999/xhtml")
@@ -184,6 +212,8 @@ Pub.prototype.generateToC = function(maxH) {
   
   this.tree.OEBPS.text.forEach(function(fileEntry, index) {
     var filename = Object.keys(fileEntry)[0];
+    if(filename=="title.xhtml" || filename=="cover.xhtml")
+      return;
 
     var $ = cheerio.load(fileEntry[filename])
     var headers = $(headerLevels);
@@ -237,33 +267,12 @@ Pub.prototype.generateToC = function(maxH) {
 
 Pub.prototype.processImages = function($) {
   var imageList = this.tree.OEBPS.images,
-      workingDir = this.options.workingDir;
-  var filenameMap = this.imageMap = this.imageMap || {};
-  
+      thispub = this;
+
+
   $('img').each(function() {
-
-    if(!filenameMap[this.attribs.src]) {
-      var num = imageList.length;
-      var newObj = {};
-      var newName;
-      var localPath = workingPath(this.attribs.src, workingDir);
-
-      if(fs.existsSync(workingPath(this.attribs.src, workingDir))) {
-        newName = num + path.extname(this.attribs.src);
-        newObj[newName] = fs.readFileSync(localPath);
-      } else {
-        var res = request("GET", this.attribs.src);
-        if(!/^image\//.test(res.headers['content-type']))
-          throw new Error("Wrong content-type, expected an image:" + res.headers['content-type'] + " (" + this.attribs.src + ")");
-
-        newName = num + "." + mimetypes.extension(res.headers['content-type']);
-        newObj[newName] = res.getBody();
-      }
-      imageList.push(newObj);
-      filenameMap[this.attribs.src] = newName;
-    }
-
-    this.attribs.src = "../images/" + filenameMap[this.attribs.src];
+    addImage.call(thispub, this.attribs.src)
+    this.attribs.src = "../images/" + thispub.imageMap[this.attribs.src];
   });
 }
 

@@ -1,6 +1,6 @@
 var mimetypes = require("mime-types");
 
-module.exports = function() {
+module.exports = function(content_opf) {
 
   return {
     container: {
@@ -8,8 +8,8 @@ module.exports = function() {
       "@xmlns": "urn:oasis:names:tc:opendocument:xmlns:container",
       rootfiles: {
         rootfile: {
-          "@full-path": "OEBPS/content.opf",
-          "@media-type": "application/oebps-package+xml"
+          "@full-path": content_opf,
+          "@media-type": mimetypes.lookup(content_opf)
         }
       }
     }
