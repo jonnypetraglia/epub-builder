@@ -48,7 +48,7 @@ var Pub = module.exports = function(meta, arrayOfFileContents, options) {
     addImage.call(this, this.options.coverImage, "cover");
   }
   if(this.options.titlePage)
-    addText.call(this, "title", this.options.titlePage, this.tree.OEBPS);
+    addText.call(this, "title", this.options.titlePage);
   for(var i=0; i<arrayOfFileContents.length; i++)
     addText.call(this, i, arrayOfFileContents[i]);
 
@@ -102,7 +102,7 @@ function addImage(uri, name) {
   this.imgCount = this.imgCount || 0;
   name = name || (this.imgCount++)
   var imgData = util.image2bufferSync(uri, this.options.workingDir);
-  name = name+imageType(imgData).ext;
+  name = name+"."+imageType(imgData).ext;
 
   var newObj = {};
   newObj[name] = imgData;
@@ -389,8 +389,6 @@ Pub.prototype.build = function(destination, cb) {
   })
   archive.finalize()
   archive.pipe(fs.createWriteStream(destination))
-  archive.on('end', function() {
-    console.log('Generated '+path.relative(process.cwd(), destination))
-    if(cb) cb()
-  })
+  archive.on('end', cb);
+  archive.on('error', cb);
 }

@@ -1,12 +1,15 @@
 {
-  "name": "nodepub",
-  "version": "0.0.1",
+  "name": "epub-builder",
+  "version": "0.1.0",
   "description": "A no-nonsense epub builder",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "",
+  "author": {
+    "name": "Jon Petraglia",
+    "email": "notbryant@gmail.com"
+  },
   "license": "MIT",
   "dependencies": {
     "archiver": "^0.14.4",

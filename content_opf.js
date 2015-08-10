@@ -119,6 +119,7 @@ function content_opf(meta, fileManifest, spineContents) {
     }});
     // TODO: Less project-dependent way of adding a cover to metadata
     if(id=="image-cover") {
+      X.package.metadata["#list"] = X.package.metadata["#list"] || [];
       X.package.metadata["#list"].push({meta: {
         "@name": "cover",
         "@content": id
