@@ -8,6 +8,7 @@ var request = require('sync-request');
 var path = require("path");
 var archiver = require('archiver');
 var mkdirp = require('mkdirp');
+var imageType = require('image-type');
 
 var util = require(__dirname + '/util.js');
 var content_opf = require(__dirname + "/content_opf.js");
@@ -79,17 +80,19 @@ var Pub = module.exports = function(meta, arrayOfFileContents, options) {
 }
 
 function addText(name, html) {
+  var isChapter = typeof name == "number";
+  name+=".xhtml"
   var $ = cheerio.load(html);
   if(this.preprocessHtml)
     this.options.preprocessHtml($)
-  this.processImages($);
+  this.processImages($, (isChapter ? "text/" : "") + name);
   html = Pub.html2xml($.html({xmlMode: true}));
-  if(typeof name == "number") {
+  if(isChapter) {
     var obj = {};
-    obj[name+".xhtml"] = html;
+    obj[name] = html;
     this.tree.OEBPS.text.push(obj);
   } else 
-    this.tree.OEBPS[name+".xhtml"] = html;
+    this.tree.OEBPS[name] = html;
 }
 
 function addImage(uri, name) {
@@ -99,12 +102,24 @@ function addImage(uri, name) {
   this.imgCount = this.imgCount || 0;
   var workingDir = this.options.workingDir
   var newObj = {};
-  var localPath = workingPath(uri, workingDir);
   name = name || ("" + this.imgCount++)
 
-  if(fs.existsSync(workingPath(uri, workingDir))) {
+  // Binary
+  if(uri instanceof Buffer) {
+    name = name + "." + imageType(uri).ext;
+    newObj[name] = uri;
+  }
+  // Base64
+  else if(/^data:image\/[a-z0-9]+;base64,/.test(uri)) {
+    var contentType = uri.match(/data:(image\/[a-z0-9]+);base64,/)[1]
+    name = name + "." + mimetypes.extension(contentType);
+    // ext should also equal imageType(buffer), but I figure this is quicker
+    newObj[name] = new Buffer(uri.substr(uri.indexOf(";base64,")+";base64,".length), 'base64');
+  // Local file
+  } else if(fs.existsSync(workingPath(uri, workingDir))) {
     name = name + path.extname(uri);
-    newObj[name] = fs.readFileSync(localPath);
+    newObj[name] = fs.readFileSync(workingPath(uri, workingDir));
+  // Url
   } else {
     var res = request("GET", uri);
     if(!/^image\//.test(res.headers['content-type']))
@@ -323,14 +338,15 @@ Pub.prototype.renderToC = function(notPretty) {
   }
 }
 
-Pub.prototype.processImages = function($) {
+Pub.prototype.processImages = function($, filename) {
   var imageList = this.tree.OEBPS.images,
-      thispub = this;
+      thispub = this,
+      pathToImages = /^text\//.test(filename) ? '../images/' : 'images/';
 
 
   $('img').each(function() {
     addImage.call(thispub, this.attribs.src)
-    this.attribs.src = "../images/" + thispub.imageMap[this.attribs.src];
+    this.attribs.src = pathToImages + thispub.imageMap[this.attribs.src];
   });
 }
 
