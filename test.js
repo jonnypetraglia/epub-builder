@@ -31,6 +31,7 @@ var pub = Pub.fromMarkdown(
   meta,
   fileContents, 
   {
+    tocInText: true,
     titlePage: titlePage,
     coverImage: "http://orig14.deviantart.net/4904/f/2013/314/f/6/_hq_jon_blank_image_by_keno9988-d6tpbai.png",
     workingDir: "/Users/notbryant/slow_pc/dist",

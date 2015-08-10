@@ -43,20 +43,34 @@ var Pub = module.exports = function(meta, arrayOfFileContents, options) {
     },
     mimetype: mimetypes.lookup(".epub")
   };
+  if(this.options.coverImage) {
+    addImage.call(this, this.options.coverImage, "cover");
+  }
   if(this.options.titlePage)
-    addText.call(this, "title.xhtml", this.options.titlePage);
+    addText.call(this, "title", this.options.titlePage, this.tree.OEBPS);
   for(var i=0; i<arrayOfFileContents.length; i++)
-    addText.call(this, i+".xhtml", arrayOfFileContents[i]);
+    addText.call(this, i, arrayOfFileContents[i]);
 
   deepestLevel = this.generateToC();
   this.tree.OEBPS["toc.ncx"] = toc_ncx(meta, this.toc, uuid, deepestLevel);
 
-  if(this.options.tocInText) {
-    //TODO: render ToC as text, addText.call(...)
-  }
+  if(this.options.tocInText)
+    addText.call(this, "toc", this.renderToC())
 
   this.generateManifest();
-  this.tree.OEBPS["content.opf"] = content_opf(meta, this.manifest);
+  this.tree.OEBPS["content.opf"] = content_opf(meta, this.manifest,
+    [
+      {
+        href: "title.xhtml",
+        type: "cover",
+        title: "Cover"
+      },
+      {
+        href: "toc.xhtml",
+        type: "toc",
+        title: "Table of Contents"
+      }
+    ]);
 
 
   this.tree['META-INF']['container.xml'] = container_xml("OEBPS/content.opf");
@@ -65,14 +79,17 @@ var Pub = module.exports = function(meta, arrayOfFileContents, options) {
 }
 
 function addText(name, html) {
-  var obj = {};
   var $ = cheerio.load(html);
   if(this.preprocessHtml)
     this.options.preprocessHtml($)
   this.processImages($);
   html = Pub.html2xml($.html({xmlMode: true}));
-  obj[name] = html;
-  this.tree.OEBPS.text.push(obj);
+  if(typeof name == "number") {
+    var obj = {};
+    obj[name+".xhtml"] = html;
+    this.tree.OEBPS.text.push(obj);
+  } else 
+    this.tree.OEBPS[name+".xhtml"] = html;
 }
 
 function addImage(uri, name) {
@@ -265,6 +282,47 @@ Pub.prototype.generateToC = function(maxH) {
   return deepestLevel+1;
 }
 
+Pub.prototype.renderToC = function(notPretty) {
+  var ToC = this.toc;
+  var X = {div: {
+    "#comment": "Rendered by XMLBuilder.js",
+    //h2: {
+    h1: {
+      "@id": "toc",
+      "#text": "Table of Contents",
+    },
+    ul: {
+      "@class": "toc no-parts",
+      "#list": Object.keys(ToC).reduce(function(prev, filename) {
+        return prev.concat(doEntries(ToC[filename], filename));
+      }, [], this)
+    }
+  }}
+
+  //return X;
+  return Pub.html2xml(
+           Pub.wrapHtmlBody(
+              xmlbuilder.create(X, {headless: true}).end({pretty: !notPretty})
+           , "Table of Contents")
+         )
+
+  function doEntries(entries, filename) {
+    return entries.map(function(entry){
+      var li = {
+        a: {
+          "@href": filename + "#" + entry.id,
+          "#text": entry.text
+        }
+      }
+      if(entry.children)
+        li.ul = {
+          "#list": doEntries(entry.children, filename)
+        }
+      return {li: li};
+    });
+  }
+}
+
 Pub.prototype.processImages = function($) {
   var imageList = this.tree.OEBPS.images,
       thispub = this;
@@ -282,11 +340,9 @@ Pub.prototype.performActionOnFiles = function(action) {
 
   function doPart(part, dir) {
     if(Array.isArray(part)) {
-      for(var i=0; i<part.length; i++) {
-        var filename = Object.keys(part[i])[0];
-        action(path.join(dir.concat(filename).join("/")), part[i][filename]);
-      }
-    } else if(typeof part == "object") {
+      for(var i=0; i<part.length; i++)
+        doPart(part[i], dir);
+    } else if(typeof part == "object" && !(part instanceof Buffer)) {
       var keyset = Object.keys(part);
       if(part[ keyset[0] ]["@xmlns"])
         action(

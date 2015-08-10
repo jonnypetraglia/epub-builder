@@ -33,7 +33,7 @@ var today = function() {
 }
 
 
-function content_opf(meta, fileManifest) {
+function content_opf(meta, fileManifest, spineContents) {
   var X = {};
 
   X.package = {
@@ -88,7 +88,27 @@ function content_opf(meta, fileManifest) {
     }
   }
 
-  /// Manifest & Spine ///
+  /// Guide && Spine part1 ///
+  (spineContents || []).forEach(function(info) {
+    if(info.href && fileManifest[info.href]) {
+      X.package.guide["#list"].push({reference: {
+        "@href": info.href,
+        "@type": info.type,
+        "@title": info.title,
+      }});
+      X.package.spine["#list"].push({itemref: {
+        "@idref": U.idOfHref(info.href)
+      }})
+    }
+  });
+  if(fileManifest["text/0.xhtml"])
+    X.package.guide["#list"].push({reference: {
+      "@href": "text/0.xhtml",
+      "@type": "text",
+      "@title": "Start"
+    }});
+
+  /// Manifest && Spine part1 ///
   for(var href in fileManifest) {
     var mediaType = fileManifest[href];
     var id = U.idOfHref(href);
@@ -97,39 +117,20 @@ function content_opf(meta, fileManifest) {
       "@href": href,
       "@media-type": mediaType
     }});
+    // TODO: Less project-dependent way of adding a cover to metadata
     if(id=="image-cover") {
       X.package.metadata["#list"].push({meta: {
         "@name": "cover",
         "@content": id
       }});
-    } else if(id=="text-title") {
-      X.package.guide["#list"].push({reference: {
-        "@href": href,
-        "@type": "cover",
-        "@title": "cover",
-      }});
     }
-    if(mediaType == "application/x-dtbncx+xml") {
+    if(mediaType == "application/x-dtbncx+xml")
       X.package.spine["@toc"] = id;
-      X.package.guide["#list"].push({reference: {
-        "@href": href,
-        "@type": "toc",
-        "@title": "Table of Contents"
+    else if(mediaType == "application/xhtml+xml" && /^text\//.test(href))
+      X.package.spine["#list"].push({itemref: {
+        "@idref": id
       }});
-    }
-    else if(mediaType == "application/xhtml+xml") {
-      if(id.indexOf("-cover")==-1)
-        X.package.spine["#list"].push({"itemref": {
-          "@idref": id
-        }});
-    }
   }
-
-  X.package.guide["#list"].push({reference: {
-    "@href": "text/0.xhtml",
-    "@type": "text",
-    "@title": "Start"
-  }});
 
   return X;
 }
