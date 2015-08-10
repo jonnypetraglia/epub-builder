@@ -43,6 +43,8 @@ var Pub = module.exports = function(meta, arrayOfFileContents, options) {
     },
     mimetype: "application/epub+zip"
   };
+  if(this.options.titlePage)
+    this.processImages(cheerio.load(this.options.titlePage));
   for(var i=0; i<arrayOfFileContents.length; i++)
     addText.call(this, i+".xhtml", arrayOfFileContents[i]);
 
@@ -50,7 +52,8 @@ var Pub = module.exports = function(meta, arrayOfFileContents, options) {
   this.tree.OEBPS["toc.ncx"] = toc_ncx(meta, this.toc, uuid, deepestLevel);
 
   if(this.options.titlePage)
-    addText("title.xhtml", this.options.titlePage);
+    addText.call(this, "title.xhtml", this.options.titlePage);
+
   this.generateManifest();
   this.tree.OEBPS["content.opf"] = content_opf(meta, this.manifest);
 
@@ -62,13 +65,11 @@ var Pub = module.exports = function(meta, arrayOfFileContents, options) {
 
 function addText(name, html) {
   var obj = {};
-  if(options.preproc essHtml) {
-    var $ = cheerio.load(html);
-    options.preprocessHtml($)
-    html = $.html();
-  }
-  html = this.processImages(html);
-  html = Pub.html2xml(html);
+  var $ = cheerio.load(html);
+  if(this.preprocessHtml)
+    this.options.preprocessHtml($)
+  this.processImages($);
+  html = Pub.html2xml($.html({xmlMode: true}));
   obj[name] = html;
   this.tree.OEBPS.text.push(obj);
 }
@@ -89,6 +90,8 @@ Pub.fromFiles = function(meta, arrayOfFiles, options) {
 
 Pub.fromMarkdown = function(meta, arrayOfFileContents, options) {
   var self = this;
+  if(options.titlePage)
+    options.titlePage = mdit.render==Pub.markdown ? mdit.render(options.titlePage) : Pub.markdown(options.titlePage)
   return new Pub(meta, arrayOfFileContents.map(function(data) {
     return Pub.wrapHtmlBody(
         mdit.render==Pub.markdown ? mdit.render(data) : Pub.markdown(data)
@@ -232,12 +235,10 @@ Pub.prototype.generateToC = function(maxH) {
   return deepestLevel+1;
 }
 
-Pub.prototype.processImages = function(html) {
+Pub.prototype.processImages = function($) {
   var imageList = this.tree.OEBPS.images,
       workingDir = this.options.workingDir;
-  // Images
-  var $ = cheerio.load(html);
-  var filenameMap = {};
+  var filenameMap = this.imageMap = this.imageMap || {};
   
   $('img').each(function() {
 
@@ -259,12 +260,11 @@ Pub.prototype.processImages = function(html) {
         newObj[newName] = res.getBody();
       }
       imageList.push(newObj);
-      filenameMap[this.attribs.src] = "images/" + newName;
+      filenameMap[this.attribs.src] = newName;
     }
 
-    this.attribs.src = "../images/" + newName;
+    this.attribs.src = "../images/" + filenameMap[this.attribs.src];
   });
-  return $.html({xmlMode: true});
 }
 
 Pub.prototype.performActionOnFiles = function(action) {
@@ -304,7 +304,7 @@ Pub.prototype.write = function(destination) {
   var that = this;
 
   this.performActionOnFiles(function(filepath, filecontents) {
-    var fullpath = path.join(destination);
+    var fullpath = path.join(destination, filepath);
     mkdirp.sync(path.dirname(fullpath));
     fs.writeFile(fullpath, filecontents)
   });
@@ -318,6 +318,7 @@ Pub.prototype.build = function(destination, cb) {
   } else
     destination = path.join(this.meta.title+'.epub')
   
+  mkdirp.sync(path.dirname(destination));
 
   var archive = archiver.create('zip')
 
@@ -331,6 +332,6 @@ Pub.prototype.build = function(destination, cb) {
   archive.pipe(fs.createWriteStream(destination))
   archive.on('end', function() {
     console.log('Generated '+path.relative(process.cwd(), destination))
-    cb()
+    if(cb) cb()
   })
 }

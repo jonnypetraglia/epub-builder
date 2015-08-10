@@ -19,17 +19,19 @@ var fileContents = require("/Users/notbryant/slow_pc/build/meta.json").contents.
 function extractTitle(fileContents) {
   var title = fileContents[0].split(/\n<!---*-->\n/)[0].trim();
   fileContents[0] = fileContents[0].substr(title.length).trim();
-  fileContents[0] = fileContents[0].substr(fileContents[0].indexOf("\n"));
+  fileContents[0] = fileContents[0].substr(fileContents[0].indexOf("\n")).trim();
   return title;
 }
+
+var titlePage = extractTitle(fileContents);
+
 
 var pub = Pub.fromMarkdown(
   meta,
   fileContents, 
   {
-    titlePage: extractTitle(fileContents),
+    titlePage: titlePage,
     workingDir: "/Users/notbryant/slow_pc/dist",
-    preprocessHtml: pagebreaks,
     customCss: "hr.pagebreak + hr.pagebreak {page-break-after: always;}" + 
                "hr.pagebreak {visibility: hidden;}"
   }
