@@ -83,8 +83,13 @@ function addText(name, html) {
   var isChapter = typeof name == "number";
   name+=".xhtml"
   var $ = cheerio.load(html);
-  if(this.preprocessHtml)
-    this.options.preprocessHtml($)
+  if(this.preprocessHtml) {
+      this.preprocessHtml = [this.preprocessHtml];
+    (Array.isArray(this.preprocessHtml) ? this.preprocessHtml : [this.preprocessHtml])
+      .forEach(function(preprocess) {
+        preprocess($, (isChapter ? "text/" : "") + name);
+      })
+  }
   this.processImages($, (isChapter ? "text/" : "") + name);
   html = Pub.html2xml($.html({xmlMode: true}));
   if(isChapter) {
@@ -341,7 +346,7 @@ Pub.prototype.performActionOnFiles = function(action) {
       if(part[ keyset[0] ]["@xmlns"])
         action(
           dir.join("/"),
-          that.getXml.call(that, dir.join("/"))
+          that.getXml(dir.join("/"))
         );
       else
         keyset.forEach(function(name) {
@@ -389,6 +394,8 @@ Pub.prototype.build = function(destination, cb) {
   })
   archive.finalize()
   archive.pipe(fs.createWriteStream(destination))
-  archive.on('end', cb);
+  archive.on('end', function() {
+    cb(destination);
+  });
   archive.on('error', cb);
 }

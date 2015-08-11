@@ -25,7 +25,7 @@ var metadataStructure = {
     contributor: {"@opf:role": "clb"}
   },
   defaults: {
-    date_creation:    today,
+    date_publication:    today,
     date_modification:   today,
     language: "en"
   }
@@ -76,7 +76,6 @@ function content_opf(meta, fileManifest, spineContents) {
     if(meta[key]) {
       (Array.isArray(meta[key]) ? meta[key] : [ meta[key] ])
       .forEach(function(val) {
-        console.log("Creating", key, val)
         var contents = clone(metadataStructure.contents[key]);
         contents["#text"] = val;
       }); // \forEach

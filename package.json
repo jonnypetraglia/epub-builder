@@ -1,6 +1,6 @@
 {
   "name": "epub-builder",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "A no-nonsense epub builder",
   "license": "MIT",
   "author": "Jon Petraglia <notbryant@gmail.com>",
