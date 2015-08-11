@@ -11,7 +11,7 @@ var meta = {
   "date_copyright": "2015-08-06",
 };
 
-var fileContents = require("/Users/notbryant/slow_pc/build/meta.json").contents.map(function(f) {
+var fileContents = require("/Users/notbryant/slow_pc/build/config.json").files.map(function(f) {
   return fs.readFileSync("/Users/notbryant/slow_pc/"+f, "utf-8");
 });
 

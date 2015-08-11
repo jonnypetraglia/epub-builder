@@ -1,5 +1,7 @@
 module.exports = content_opf;
 
+var clone = require('clone');
+
 var U = require(__dirname + '/util.js')
 
 var metadataStructure = {
@@ -11,17 +13,21 @@ var metadataStructure = {
     title:      {},
     language:   {},
     rights:     {},
-    date_creation: {"@opf:event": "creation"},
-    date_copyright: {"@opf:event": "copyright"},
+    subject:    {},
+    description: {},
+    //TODO: just make 'date' a function that takes a label and a date
+    date_modification: {"@opf:event": "modification"},
     date_publication: {"@opf:event": "publication"},
+    date_translation: {"@opf:event": "translation"},
     publisher:  {},
     identifier: {"@id": "uuid", "@opf:scheme": "UUID"},
-    creator:    {"@opf:role": "aut"}
+    creator:    {"@opf:role": "aut"},
+    contributor: {"@opf:role": "clb"}
   },
   defaults: {
     date_creation:    today,
-    date_copyright:   today,
-    date_publication: today
+    date_modification:   today,
+    language: "en"
   }
 };
 
@@ -42,7 +48,8 @@ function content_opf(meta, fileManifest, spineContents) {
       "@version": "2.0",
     metadata: {
       "@xmlns:dc": "http://purl.org/dc/elements/1.1/",
-      "@xmlns:opf": "http://www.idpf.org/2007/opf"
+      "@xmlns:opf": "http://www.idpf.org/2007/opf",
+      "#list": []
     },
     manifest: {
       "#list": []
@@ -66,26 +73,26 @@ function content_opf(meta, fileManifest, spineContents) {
     if(dckey.indexOf("_") > -1)
       dckey = "dc:"+key.split("_")[0];
 
-    var val = metadataStructure.contents[key];
-    if(meta[key])
-      val["#text"] = meta[key];
-    else if(metadataStructure.defaults[key]) {
+    if(meta[key]) {
+      (Array.isArray(meta[key]) ? meta[key] : [ meta[key] ])
+      .forEach(function(val) {
+        console.log("Creating", key, val)
+        var contents = clone(metadataStructure.contents[key]);
+        contents["#text"] = val;
+      }); // \forEach
+    } else if(metadataStructure.defaults[key]) {
+      var contents = clone(metadataStructure.contents[key]);
       if(metadataStructure.defaults[key] instanceof Function)
-        val["#text"] = metadataStructure.defaults[key]();
+        contents["#text"] = metadataStructure.defaults[key]();
       else
-        val["#text"] = metadataStructure.defaults[key];
+        contents["#text"] = metadataStructure.defaults[key];
     }
     else
       continue;
 
-    if(dckey=="dc:"+key)
-      X.package.metadata[dckey] = val;
-    else {
-      X.package.metadata["#list"] = X.package.metadata["#list"] || [];
-      var derp = {};
-      derp[dckey] = val;
-      X.package.metadata["#list"].push(derp);
-    }
+    var derp = {};
+    derp[dckey] = contents;
+    X.package.metadata["#list"].push(derp);
   }
 
   /// Guide && Spine part1 ///
