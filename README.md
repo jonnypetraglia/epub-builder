@@ -49,7 +49,7 @@ Create an EpubBuilder object and run 'build()'. That's it.
 
   var Epub = new builder(metadata, htmlContents, options);
 
-  Epub.build(function(err, outputFile) {
+  Epub.build("output.epub", function(err, outputFile) {
     if(!err) console.log("Successfully generated", outputFile);
   });
 ```
