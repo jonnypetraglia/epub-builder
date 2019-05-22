@@ -395,7 +395,7 @@ Pub.prototype.build = function(destination, cb) {
   archive.finalize()
   archive.pipe(fs.createWriteStream(destination))
   archive.on('end', function() {
-    cb(destination);
+    cb(null, destination);
   });
   archive.on('error', cb);
 }
