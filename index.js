@@ -370,7 +370,7 @@ Pub.prototype.write = function(destination) {
   this.performActionOnFiles(function(filepath, filecontents) {
     var fullpath = path.join(destination, filepath);
     mkdirp.sync(path.dirname(fullpath));
-    fs.writeFile(fullpath, filecontents)
+    fs.writeFileSync(fullpath, filecontents)
   });
 }
 
